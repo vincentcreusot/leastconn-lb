@@ -23,7 +23,7 @@ The map of upstreams containing the connections count uses a mutex to make it th
 
 After finding the least used upstream server, it increments the count and opens a new connection towards that server. It copies the data from the client connection to the upstream connection and vice versa using `io.Copy`.
 
-Copying the data in a goroutine ensures non blocking behavior.
+Copying the data in 2 different goroutines (one from client to server, one from server to client) ensures non blocking behavior.
 
 ### Rate limiter
 The rate limiter discards connection if the client makes too many connections for an amount of time.
