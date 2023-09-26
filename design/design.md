@@ -21,6 +21,10 @@ The forwarder maintains a list of connections opened towards the upstream server
 
 The forwarder provides 2 public methods
 ```go
+type Forwarder struct {
+	upstreams map[string]int
+	mu        sync.Mutex
+}
 func NewForwarder(upstreams []string) *Forwarder {}
 func (f *Forwarder) Forward(src net.Conn, allowedUpstreams []string) {}
 ```
@@ -37,6 +41,17 @@ I will use the `token bucket` algorithm implemented in package `x/time/rate`. It
 
 To demonstrate that feature easily I will use a bucket size of `3` and a rate of `1`.
 
+The public functions of the rate limiter are:
+```go
+type Ratelimiter struct {
+	clients map[string]*client
+	burst   int
+	rate    int
+    mu      sync.Mutex
+}
+func NewRateLimiter(burst, rate int) *Ratelimiter {}
+func (r *Ratelimiter) Allow(clientId string) bool {}
+```
 ## Server
 The server uses the forwarder library and appends security.
 ### Secured communication
