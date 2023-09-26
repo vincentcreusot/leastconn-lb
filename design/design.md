@@ -103,7 +103,7 @@ The way to determine the client is the subject.CommonName field of the certifica
 ### User experience
 We can simulate the user experience by using `curl` in the background and use the different certificates alternatively.
 ```sh
-curl --cacert file.crt &
+curl --cert client.crt --key client.key --cacert ca.crt https://myserver.internal.net:443 &
 ```
 I will maintain a shell script that launches them parallely.
 
