@@ -19,6 +19,12 @@ The load balancer library will contain the core logic for distributing incoming 
 ### Connection forwarder
 The forwarder maintains a list of connections opened towards the upstream servers. It will forward incoming TCP connections to the least used upstream server based on the least connection algorithm.
 
+The forwarder provides 2 public methods
+```go
+func NewForwarder(upstreams []string) *Forwarder {}
+func (f *Forwarder) Forward(src net.Conn, allowedUpstreams []string) {}
+```
+
 The map of upstreams containing the connections count uses a mutex to make it thread safe.
 
 After finding the least used upstream server, it increments the count and opens a new connection towards that server. It copies the data from the client connection to the upstream connection and vice versa using `io.Copy`.
