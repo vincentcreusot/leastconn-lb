@@ -37,7 +37,7 @@ The server uses mutual TLS for authentication. Clients will need to provide a va
 
 In Mutual TLS, the server requests the client to provide a digital certificate which contains the client's public key and identity information. The server verifies the client's certificate by checking its authenticity and ensuring it is signed by a trusted Certificate Authority (CA) that the server recognizes. This confirms the client's identity.
 ##### Certificate configuration
-To generate the certificates we must use the same Certificate Authority.
+The server and client certificates must use the same Certificate Authority.
 ```
 # Generate CA cert
 openssl genrsa -aes256 -out ca/ca.key 4096 
@@ -99,7 +99,7 @@ curl --cacert file.crt &
 ```
 I will maintain a shell script that launches them parallely.
 
-The server side can be simulated with several `nginx` servers running in `docker`. Reading the access logs of the servers will give us an idea of the load balancing accuracy.
+The upstreams side can be simulated with several `nginx` servers running in `docker`. Reading the access logs of the servers will give us an idea of the load balancing accuracy.
 
 ## Trade Offs
 Here is a list of trade offs/assumptions used for the design of the solution: 
@@ -108,4 +108,4 @@ Here is a list of trade offs/assumptions used for the design of the solution:
 - to have a better security, I will discard SSL and TLS before 1.2
 - for the sake of the exercise, the list of upstreams is hard coded
 - for the sake of the exercise, the rate limit is hard coded
-- the number of clients is considered small enough to not have to clean the clients not using the load balancer for a long period 
+- the number of clients is considered small enough to not have to clean the clients list after a period of time
