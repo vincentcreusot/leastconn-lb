@@ -32,6 +32,14 @@ func (f *Forwarder) Forward(src net.Conn, allowedUpstreams []string) {}
 
 The map of upstreams containing the connections count uses a mutex to make it thread safe.
 
+Note: the usage of mutex can be replaced by using channels.
+Some advantages of mutex are 
+- simpler implementation
+- light weight locking
+- low memory overhead
+Channels would permit passing parameters using them and can permit multiple consumers and producers concurrently which is not needed here.
+That choice can be made during implementation.
+
 After finding the least used upstream server, it increments the count and opens a new connection towards that server. It copies the data from the client connection to the upstream connection and vice versa using `io.Copy`.
 
 Copying the data in 2 different goroutines (one from client to server, one from server to client) ensures non blocking behavior.
