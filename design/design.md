@@ -9,6 +9,7 @@ The load balancer is written in Go.
 Here is a simplified high level diagram (the diagram is generated and written in [d2lang](https://d2lang.com/) in this folder): <img src="layers.svg" width="300"/>
 ## Requirements
 - certificates for the client are generated my the same instance as for the server. That permits to set the CN values adequately.
+- the CN format used is the host name + domain name
 
 ## Load balancer library
 The load balancer library will contain the core logic for distributing incoming requests across backend servers. It will:
