@@ -36,8 +36,9 @@ After finding the least used upstream server, it increments the count and opens 
 Copying the data in 2 different goroutines (one from client to server, one from server to client) ensures non blocking behavior.
 
 ### Rate limiter
-The rate limiter discards connection if the client makes too many connections for an amount of time.
-I will use the `token bucket` algorithm implemented in package `x/time/rate`. It permits to define a burst of connections and will have a max connections per second refill of the "bucket". 
+The rate limiter discards connection if the client makes too many connections for an amount of time. The client will be identified by the CN value in the certificate or part of it.
+
+I will use the `token bucket` algorithm implemented in package `x/time/rate` for its smooth nature and simplicity to implement and demonstrate. It permits to define a burst of connections and will have a max connections per second refill of the "bucket". 
 
 To demonstrate that feature easily I will use a bucket size of `3` and a rate of `1`.
 
@@ -112,7 +113,7 @@ cfg := &tls.Config{
 ```
 ### Authorization scheme
 #### Principle
-A map is created in the server with the upstreams associated to each client. This map is passed to the forward method who will verify if the upstream selected is in the list passed for the client.
+A list is created in the server with the upstreams associated to each client. This list is passed to the forward method who will verify if the upstream selected is in the list passed for the client. The upstreams list and the client's accessible upstream list are created by the same layer so if the list is empty we do not forward the request and close the connection.
 
 The way to determine the client is the subject.CommonName field of the certificate. The certificate needs to have that information correctly filled so that we can identify it and authorize it.
 
