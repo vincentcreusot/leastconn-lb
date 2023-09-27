@@ -61,6 +61,8 @@ The server uses mutual TLS for authentication. Clients will need to provide a va
 
 In Mutual TLS, the server requests the client to provide a digital certificate which contains the client's public key and identity information. The server verifies the client's certificate by checking its authenticity and ensuring it is signed by a trusted Certificate Authority (CA) that the server recognizes. This confirms the client's identity.
 The server also provides its own certificate to the client during TLS handshake. The client verifies the server certificate similarly. This establishes mutual authentication between the client and server.
+
+Certificate rotation is supported by generating new certificates periodically and distributing them to clients. The certificates are distributed befpre they expire to ensure smooth rotation. When a new certificate is received, the client stops using the old certificate and it can be put in a revocation list. The CRL can be checked by clients during certificate validation and both certificates can be used before using that list.
 ##### Certificate configuration
 The server and client certificates must use the same Certificate Authority.
 ```
