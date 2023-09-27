@@ -90,7 +90,7 @@ The server uses mutual TLS for authentication. Clients will need to provide a va
 In Mutual TLS, the server requests the client to provide a digital certificate which contains the client's public key and identity information. The server verifies the client's certificate by checking its authenticity and ensuring it is signed by a trusted Certificate Authority (CA) that the server recognizes. This confirms the client's identity.
 The server also provides its own certificate to the client during TLS handshake. The client verifies the server certificate similarly. This establishes mutual authentication between the client and server.
 
-Certificate rotation is supported by generating new certificates periodically and distributing them to clients. The certificates are distributed befpre they expire to ensure smooth rotation. When a new certificate is received, the client stops using the old certificate and it can be put in a revocation list. The CRL can be checked by clients during certificate validation and both certificates can be used before using that list.
+Certificate rotation is supported by generating new certificates periodically and distributing them to clients. The certificates are distributed before they expire to ensure smooth rotation. When a new certificate is received, the client stops using the old certificate and it can be put in a revocation list. The CRL can be checked by clients during certificate validation and both certificates can be used before using that list.
 ##### Certificate configuration
 The server and client certificates must use the same Certificate Authority.
 ```
@@ -144,6 +144,12 @@ cfg := &tls.Config{
 ### Authorization scheme
 #### Principle
 A list is created in the server with the upstreams associated to each client. This list is passed to the forward method who will verify if the upstream selected is in the list passed for the client. The upstreams list and the client's accessible upstream list are created by the same layer so if the list is empty we do not forward the request and close the connection.
+
+For example the list will be passed like that:
+```go
+upstreams := []string{"localhost:9001", "localhost:9002"}
+go forwarder.Forward(clientConn, upstreams)
+```
 
 The way to determine the client is the subject.CommonName field of the certificate. The certificate needs to have that information correctly filled so that we can identify it and authorize it.
 
