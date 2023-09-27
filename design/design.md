@@ -6,7 +6,26 @@ As requested, the project is broken into 2 components
 
 The load balancer is written in Go.
 
-Here is a simplified high level diagram (the diagram is generated and written in [d2lang](https://d2lang.com/) in this folder): <img src="layers.svg" width="300"/>
+Here is a simplified high level diagram:
+```mermaid
+graph TD;
+  user(User) -->|mTLS| auth_scheme(Auth Scheme)
+  auth_scheme --> rate_limiter(Rate Limiter)
+  rate_limiter --> least_conn(Least Connection)
+  least_conn --> upstream1(Upstream 1)
+  least_conn --> upstream2(Upstream 2)
+  subgraph server[Server]
+    auth_scheme
+    rate_limiter
+    least_conn
+    subgraph forwarder[Forwarder]
+      rate_limiter
+      least_conn
+    end
+  end
+  class user person;
+```
+
 ## Requirements
 - certificates for the client are generated my the same instance as for the server. That permits to set the CN values adequately.
 - the CN format used is the host name + domain name
