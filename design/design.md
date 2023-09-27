@@ -154,12 +154,18 @@ go forwarder.Forward(clientConn, upstreams)
 The way to determine the client is the subject.CommonName field of the certificate. The certificate needs to have that information correctly filled so that we can identify it and authorize it.
 
 ### User experience
-We can simulate the user experience by using `curl` in the background and use the different certificates alternatively.
+#### Client
+We can simulate the client user experience by using `curl` in the background and use the different certificates alternatively.
 ```sh
 curl --cert client.crt --key client.key --cacert ca.crt https://myserver.internal.net:443 &
 ```
 I will maintain a shell script that launches them parallely.
 
+#### Server
+The server can be launched with an executable file. There will be a main file that uses the modules accordingly.
+
+A Dockerfile will be provided to be able to start the server in a containerized environment. This makes it easy to run and deploy.
+#### Testing
 The upstreams side can be simulated with several `nginx` servers running in `docker`. Reading the access logs of the servers will give us an idea of the load balancing accuracy.
 
 ## Trade Offs
