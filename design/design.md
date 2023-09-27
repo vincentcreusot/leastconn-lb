@@ -63,6 +63,10 @@ After finding the least used upstream server, it increments the count and opens 
 
 Copying the data in 2 different goroutines (one from client to server, one from server to client) ensures non blocking behavior.
 
+The forwarder manages the connections availability by using a retry mechanism. If connecting to the selected upstream fails, it will try the next least used server until it succeeds or exhausts the allowed upstreams list.
+
+Each time an upstream connection is found not responsive, it is added to a list of "unhealthy" upstreams for a period of time before being removed. This prevents constantly retrying failing servers.
+
 ### Rate limiter
 The rate limiter discards connection if the client makes too many connections for an amount of time. The client will be identified by the CN value in the certificate or part of it.
 
@@ -171,7 +175,6 @@ The upstreams side can be simulated with several `nginx` servers running in `doc
 ## Trade Offs
 Here is a list of trade offs/assumptions used for the design of the solution: 
 
-- for the simplicity of the exercise, I will not manage upstream servers failures, the server will be available and the least connections algorithm will not include the health of the upstream.
 - to have a better security, I will discard SSL and TLS before 1.2
 - for the sake of the exercise, the list of upstreams is hard coded
 - for the sake of the exercise, the rate limit is hard coded
