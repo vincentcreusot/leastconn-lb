@@ -19,3 +19,8 @@
 
 # Go workspace file
 go.work
+.vscode
+.idea
+certs/ca
+certs/server
+certs/client
