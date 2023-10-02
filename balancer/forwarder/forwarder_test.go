@@ -1,0 +1,65 @@
+package forwarder
+
+import (
+	"fmt"
+	"github.com/rs/zerolog/log"
+	"github.com/stretchr/testify/assert"
+	"io"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
+
+func TestForward(t *testing.T) {
+
+	srv1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n, err := io.WriteString(w, "<html><body>server1</body></html>\n")
+		log.Debug().Int("written", n).Err(err).Msg("Server1 write")
+	}))
+	defer srv1.Close()
+
+	srv2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "<html><body>server2</body></html>\n")
+	}))
+	defer srv2.Close()
+
+	servers := []string{srv1.Listener.Addr().String(), srv2.Listener.Addr().String()}
+
+	f := NewForwarder(servers)
+
+	// Forward
+
+	listener, err := net.Listen("tcp", "localhost:0")
+	assert.NoError(t, err)
+	errChan := make(chan error, 1)
+	go listenForTestRequest(f, listener, servers, errChan)
+	// Write to client side
+	resp, err := http.Get("http://" + listener.Addr().String() + "/anything")
+	assert.NoError(t, err)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+	assert.NotNil(t, body)
+	assert.Equal(t, string(body), "<html><body>server1</body></html>\n")
+	resp.Body.Close()
+	<-errChan
+	//err = <-errChan
+	//assert.NoError(t, err)
+	firstServerUpCount := f.upstreams[srv1.Listener.Addr().String()]
+	assert.Equal(t, (int32)(0), firstServerUpCount.Load())
+
+}
+
+func listenForTestRequest(f *Forwarder, listener net.Listener, urls []string, errChan chan error) {
+
+	for {
+		clientConn, err := listener.Accept()
+		if err != nil {
+			fmt.Println("Error accepting: ", err)
+			continue
+		}
+
+		go f.Forward(clientConn, urls, errChan)
+	}
+}
