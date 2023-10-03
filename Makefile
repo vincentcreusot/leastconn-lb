@@ -1,10 +1,15 @@
-.PHONY: build-balancer test-balancer
+.PHONY: test test-race simulate-servers stop-servers
+test:
+	@go test -cover ./...
 
-build-balancer:
-	@go build -o bin/balancer balancer/main.go
+test-race:
+	@go test -race ./...
 
-test-balancer:
-	@go test -cover ./balancer/...
+simulate-servers:
+	@cd test && docker-compose up
 
-test-balancer-race:
-	@go test -race ./balancer/forwarder/...
+stop-servers:
+	@cd test && docker-compose down
+
+
+

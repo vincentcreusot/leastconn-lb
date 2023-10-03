@@ -6,6 +6,9 @@ import (
 	"golang.org/x/time/rate"
 )
 
+type IRateLimiter interface {
+	Allow(clientId string) bool
+}
 type client struct {
 	limiter *rate.Limiter
 	// can include a lastRequestTime to permit cleaning periodically

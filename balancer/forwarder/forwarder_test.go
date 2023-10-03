@@ -2,7 +2,6 @@ package forwarder
 
 import (
 	"fmt"
-	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/assert"
 	"io"
 	"net"
@@ -14,8 +13,7 @@ import (
 func TestForward(t *testing.T) {
 
 	srv1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		n, err := io.WriteString(w, "<html><body>server1</body></html>\n")
-		log.Debug().Int("written", n).Err(err).Msg("Server1 write")
+		io.WriteString(w, "<html><body>server1</body></html>\n")
 	}))
 	defer srv1.Close()
 
@@ -29,11 +27,11 @@ func TestForward(t *testing.T) {
 	f := NewForwarder(servers)
 
 	// Forward
-
-	listener, err := net.Listen("tcp", "localhost:0")
+	lAddr, _ := net.ResolveTCPAddr("tcp", "localhost:0")
+	listener, err := net.ListenTCP("tcp", lAddr)
 	assert.NoError(t, err)
-	errChan := make(chan error, 1)
-	go listenForTestRequest(f, listener, servers, errChan)
+	errorsChan := make(chan []error, 1)
+	go listenForTestRequest(f, listener, servers, errorsChan)
 	// Write to client side
 	resp, err := http.Get("http://" + listener.Addr().String() + "/anything")
 	assert.NoError(t, err)
@@ -43,15 +41,14 @@ func TestForward(t *testing.T) {
 	assert.NotNil(t, body)
 	assert.Equal(t, string(body), "<html><body>server1</body></html>\n")
 	resp.Body.Close()
-	<-errChan
-	//err = <-errChan
-	//assert.NoError(t, err)
+	errs := <-errorsChan
+	assert.Equal(t, 0, len(errs))
 	firstServerUpCount := f.upstreams[srv1.Listener.Addr().String()]
 	assert.Equal(t, (int32)(0), firstServerUpCount.Load())
 
 }
 
-func listenForTestRequest(f *Forwarder, listener net.Listener, urls []string, errChan chan error) {
+func listenForTestRequest(f *Forwarder, listener *net.TCPListener, urls []string, errorsChan chan []error) {
 
 	for {
 		clientConn, err := listener.Accept()
@@ -60,6 +57,6 @@ func listenForTestRequest(f *Forwarder, listener net.Listener, urls []string, er
 			continue
 		}
 
-		go f.Forward(clientConn, urls, errChan)
+		go f.Forward(clientConn.(*net.TCPConn), urls, errorsChan)
 	}
 }
