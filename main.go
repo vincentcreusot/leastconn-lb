@@ -19,9 +19,9 @@ func main() {
 	defer listener.Close()
 
 	fmt.Println("Forwarder is listening on port 8888...")
-	balance := balancer.NewBalancer(5, 10, upstreams)
+	balance := balancer.NewBalancer(20, 20, upstreams)
 
-	errorsChan := make(chan []error, 0)
+	errorsChan := make(chan []error)
 	// Accept incoming connections and forward them to upstream servers
 	for {
 		clientConn, err := listener.Accept()
