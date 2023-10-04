@@ -22,8 +22,9 @@ const (
 
 // forward forwards connections from src to dst using the least connections algorithm.
 type forward struct {
-	upstreams map[string]*atomic.Int32
-	unhealthy map[string]time.Time
+	upstreams   map[string]*atomic.Int32
+	unhealthy   map[string]time.Time
+	healthMutex sync.Mutex
 }
 
 type Forwarder interface {
@@ -89,7 +90,7 @@ func (f *forward) forward(src net.Conn, dst string) (bool, error) {
 
 	dstConn, err := net.Dial("tcp", dst)
 	if err != nil {
-		f.unhealthy[dst] = time.Now()
+
 		log.Debug().Str("upstream", dst).Msg("Marking as unhealthy")
 		return false, nil
 	}
@@ -146,7 +147,14 @@ func (f *forward) decrementConnectionCount(upstream string) {
 	val.Add(-1)
 }
 
+func (f *forward) setUnhealthy(upstream string) {
+	f.healthMutex.Lock()
+	defer f.healthMutex.Unlock()
+	f.unhealthy[upstream] = time.Now()
+}
 func (f *forward) isUnhealthy(upstream string) bool {
+	f.healthMutex.Lock()
+	defer f.healthMutex.Unlock()
 	unhealthyTime, found := f.unhealthy[upstream]
 	if !found {
 		return false
