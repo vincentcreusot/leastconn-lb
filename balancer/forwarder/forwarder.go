@@ -90,7 +90,7 @@ func (f *forward) forward(src net.Conn, dst string) (bool, error) {
 
 	dstConn, err := net.Dial("tcp", dst)
 	if err != nil {
-
+		f.setUnhealthy(dst)
 		log.Debug().Str("upstream", dst).Msg("Marking as unhealthy")
 		return false, nil
 	}
@@ -152,6 +152,7 @@ func (f *forward) setUnhealthy(upstream string) {
 	defer f.healthMutex.Unlock()
 	f.unhealthy[upstream] = time.Now()
 }
+
 func (f *forward) isUnhealthy(upstream string) bool {
 	f.healthMutex.Lock()
 	defer f.healthMutex.Unlock()
