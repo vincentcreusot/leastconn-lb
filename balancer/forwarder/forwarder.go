@@ -7,7 +7,6 @@ import (
 	"math"
 	"net"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -24,7 +23,6 @@ const (
 type forward struct {
 	upstreams map[string]*atomic.Int32
 	unhealthy map[string]time.Time
-	mu        sync.Mutex
 }
 
 type Forwarder interface {
@@ -66,9 +64,6 @@ func (f *forward) Forward(src net.Conn, allowedUpstreams []string) error {
 }
 
 func (f *forward) getLeastConn(allowed []string) string {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
 	leastUsed := ""
 	var leastCount int32 = math.MaxInt32
 	for _, dst := range allowed {
@@ -130,21 +125,17 @@ func (f *forward) copyData(dst io.WriteCloser, src io.Reader, errChan chan error
 
 // Function to increment the connection count for an upstream server
 func (f *forward) incrementConnectionCount(upstream string) {
-	f.mu.Lock()
 	val := f.upstreams[upstream]
 	val.Add(1)
-	f.mu.Unlock()
 }
 
 // Function to decrement the connection count for an upstream server
 func (f *forward) decrementConnectionCount(upstream string) {
-	f.mu.Lock()
 	val := f.upstreams[upstream]
 	if val.Load() < 1 {
 		log.Warn().Msg("Negative counter detected!")
 	}
 	val.Add(-1)
-	f.mu.Unlock()
 }
 
 func (f *forward) isUnhealthy(upstream string) bool {
