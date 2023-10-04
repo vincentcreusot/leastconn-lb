@@ -7,6 +7,7 @@ import (
 	"math"
 	"net"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -95,22 +96,29 @@ func (f *forward) forward(src net.Conn, dst string) (bool, error) {
 	defer dstConn.Close()
 
 	f.incrementConnectionCount(dst)
-	internalErrChan := make(chan error, 2)
-	go f.copyData(dstConn, src, internalErrChan)
-	go f.copyData(src, dstConn, internalErrChan)
+	var wg sync.WaitGroup
+	var err1, err2 error
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		err1 = f.copyData(dstConn, src)
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		err2 = f.copyData(src, dstConn)
+	}()
 
 	// TODO find the reason why it's needed
 	dstConn.SetReadDeadline(time.Now().Add(terminationDelay))
-	err1 := <-internalErrChan
-	err2 := <-internalErrChan
-
+	wg.Wait()
 	f.decrementConnectionCount(dst)
 
 	return true, errors.Join(err1, err2)
 }
 
 // Function to copy data between two connections
-func (f *forward) copyData(dst io.WriteCloser, src io.Reader, errChan chan error) {
+func (f *forward) copyData(dst io.WriteCloser, src io.Reader) error {
 	_, err := io.Copy(dst, src)
 	// hack to remove normal close from errors
 	var opErr *net.OpError
@@ -120,7 +128,7 @@ func (f *forward) copyData(dst io.WriteCloser, src io.Reader, errChan chan error
 		}
 	}
 	dst.Close()
-	errChan <- err
+	return err
 }
 
 // Function to increment the connection count for an upstream server

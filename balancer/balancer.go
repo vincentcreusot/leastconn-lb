@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/rs/zerolog/log"
 	"github.com/vincentcreusot/leastconn-lb/balancer/forwarder"
 	"github.com/vincentcreusot/leastconn-lb/balancer/ratelimiter"
 )
@@ -39,7 +38,6 @@ func (b *balance) Balance(conn net.Conn, clientId string, allowedUpstreams []str
 	if b.rateLimiter.Allow(clientId) {
 		err = b.forwarder.Forward(conn, allowedUpstreams)
 	} else {
-		log.Debug().Str("client", clientId).Msg("limited")
 		err = fmt.Errorf("client rate limited")
 		conn.Close()
 	}

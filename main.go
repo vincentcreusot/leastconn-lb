@@ -10,7 +10,7 @@ import (
 
 func main() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 
 	upstreams := []string{"localhost:9801", "localhost:9802"}
 	// Listen for incoming connections on port 8888
@@ -22,9 +22,9 @@ func main() {
 	defer listener.Close()
 
 	log.Info().Msg("Listening on 0.0.0.0:8888")
-	balance := balancer.NewBalancer(balancer.Config{Burst: 5, Rate: 5, Upstreams: upstreams})
+	balance := balancer.NewBalancer(balancer.Config{Burst: 20, Rate: 20, Upstreams: upstreams})
 
-	errorsChan := make(chan error, 10)
+	errorsChan := make(chan error, 1000)
 	// Accept incoming connections and forward them to upstream servers
 	for {
 		clientConn, err := listener.Accept()
@@ -41,5 +41,7 @@ func main() {
 
 func displayErrors(errorsChan <-chan error) {
 	err := <-errorsChan
-	log.Error().Err(err)
+	if err != nil {
+		log.Error().Err(err).Msg("Error forwarding")
+	}
 }
