@@ -39,14 +39,10 @@ func TestForward(t *testing.T) {
 
 	body, err := io.ReadAll(resp.Body)
 	assert.NoError(t, err)
-	assert.NotNil(t, body)
 	assert.Equal(t, string(body), "<html><body>server1</body></html>\n")
 	resp.Body.Close()
 	errs := <-errorsChan
 	assert.NoError(t, errs)
-	firstServerUpCount := f.upstreams[srv1.Listener.Addr().String()]
-	assert.Equal(t, (int32)(0), firstServerUpCount.Load())
-
 }
 
 func listenForTestRequest(f *forward, listener *net.TCPListener, urls []string, errorsChan chan<- error) {

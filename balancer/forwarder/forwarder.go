@@ -4,12 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net"
-	"strings"
+	"os"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"slices"
 
 	"github.com/rs/zerolog/log"
 )
@@ -20,9 +22,14 @@ const (
 	unhealthyTimeout = 30 * time.Second
 )
 
+type upstream struct {
+	addr string
+	load *atomic.Int32
+}
+
 // forward forwards connections from src to dst using the least connections algorithm.
 type forward struct {
-	upstreams   map[string]*atomic.Int32
+	ups         []*upstream
 	unhealthy   map[string]time.Time
 	healthMutex sync.Mutex
 }
@@ -33,65 +40,65 @@ type Forwarder interface {
 
 // NewForwarder creates a new Forwarder.
 func NewForwarder(upstreams []string) *forward {
-	urlMap := make(map[string]*atomic.Int32)
-	for _, upstream := range upstreams {
+	upstreamSlice := make([]*upstream, len(upstreams))
+	for i, u := range upstreams {
 		atomicZero := atomic.Int32{}
 		atomicZero.Store(0)
-		urlMap[upstream] = &atomicZero
+		upstreamSlice[i] = &upstream{addr: u, load: &atomicZero}
 	}
 
 	return &forward{
-		upstreams: urlMap,
+		ups:       upstreamSlice,
 		unhealthy: make(map[string]time.Time),
 	}
 }
 
 // Forward forwards the connection src to the destination with the least connections.
 func (f *forward) Forward(src net.Conn, allowedUpstreams []string) error {
-	if src != nil {
-		for i := 0; i < maxRetry; i++ {
-			if i > 0 {
-				log.Debug().Str("remoteAddr", src.RemoteAddr().String()).Msg("Retrying")
-			}
-			dst := f.getLeastConn(allowedUpstreams)
-			if success, err := f.forward(src, dst); success {
-				return err
-			}
-		}
-
-		// Retries exceeded, return error
-		return fmt.Errorf("max retries exceeded for %s", src.RemoteAddr())
+	if src == nil {
+		return fmt.Errorf("connection is null")
 	}
-	return fmt.Errorf("connection is null")
-}
 
-func (f *forward) getLeastConn(allowed []string) string {
-	leastUsed := ""
-	var leastCount int32 = math.MaxInt32
-	for _, dst := range allowed {
-		if f.isUnhealthy(dst) {
+	for i := 0; i < maxRetry; i++ {
+		if i > 0 {
+			log.Debug().Str("remoteAddr", src.RemoteAddr().String()).Msg("Retrying")
+		}
+		dst := f.getLeastConn(allowedUpstreams)
+		if dst == nil {
 			continue
 		}
-		count := f.upstreams[dst].Load()
-		if count < leastCount {
-
-			leastUsed = dst
-			leastCount = count
+		if success, err := f.forward(src, dst); success {
+			return err
 		}
 	}
 
-	return leastUsed
+	// Retries exceeded, return error
+	return fmt.Errorf("max retries exceeded for %s", src.RemoteAddr())
+
+}
+
+func (f *forward) getLeastConn(allowed []string) *upstream {
+	upstreams := append(f.ups[:0:0], f.ups...)
+	sort.SliceStable(upstreams, func(i, j int) bool {
+		return upstreams[i].load.Load() < upstreams[j].load.Load()
+	})
+	for _, v := range upstreams {
+		if slices.Contains(allowed, v.addr) {
+			return v
+		}
+	}
+	return nil
 }
 
 // forward returns false if the upstream is unhealthy
-func (f *forward) forward(src net.Conn, dst string) (bool, error) {
+func (f *forward) forward(src net.Conn, dst *upstream) (bool, error) {
 	defer src.Close()
-	log.Debug().Str("destination", dst).Msg("Forwarding to")
+	log.Debug().Str("destination", dst.addr).Msg("Forwarding to")
 
-	dstConn, err := net.Dial("tcp", dst)
+	dstConn, err := net.Dial("tcp", dst.addr)
 	if err != nil {
-		f.setUnhealthy(dst)
-		log.Debug().Str("upstream", dst).Msg("Marking as unhealthy")
+		f.setUnhealthy(dst.addr)
+		log.Debug().Str("upstream", dst.addr).Msg("Marking as unhealthy")
 		return false, nil
 	}
 	defer dstConn.Close()
@@ -120,31 +127,23 @@ func (f *forward) forward(src net.Conn, dst string) (bool, error) {
 
 // Function to copy data between two connections
 func (f *forward) copyData(dst io.WriteCloser, src io.Reader) error {
+	defer dst.Close()
 	_, err := io.Copy(dst, src)
 	// hack to remove normal close from errors
-	var opErr *net.OpError
-	if errors.As(err, &opErr) {
-		if strings.HasSuffix(opErr.Error(), "use of closed network connection") || strings.HasSuffix(opErr.Error(), "i/o timeout") {
-			err = nil
-		}
+	if os.IsTimeout(err) || errors.Is(err, net.ErrClosed) {
+		err = nil
 	}
-	dst.Close()
 	return err
 }
 
 // Function to increment the connection count for an upstream server
-func (f *forward) incrementConnectionCount(upstream string) {
-	val := f.upstreams[upstream]
-	val.Add(1)
+func (f *forward) incrementConnectionCount(u *upstream) {
+	u.load.Add(1)
 }
 
 // Function to decrement the connection count for an upstream server
-func (f *forward) decrementConnectionCount(upstream string) {
-	val := f.upstreams[upstream]
-	if val.Load() < 1 {
-		log.Warn().Msg("Negative counter detected!")
-	}
-	val.Add(-1)
+func (f *forward) decrementConnectionCount(u *upstream) {
+	u.load.Add(-1)
 }
 
 func (f *forward) setUnhealthy(upstream string) {
