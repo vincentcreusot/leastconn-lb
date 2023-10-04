@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -117,9 +118,11 @@ func (f *forward) forward(src net.Conn, dst string) (bool, error) {
 func (f *forward) copyData(dst io.WriteCloser, src io.Reader, errChan chan error) {
 	_, err := io.Copy(dst, src)
 	// hack to remove normal close from errors
-	e, ok := err.(*net.OpError)
-	if ok && (e.Err.Error() == "use of closed network connection" || e.Err.Error() == "i/o timeout") {
-		err = nil
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		if strings.HasSuffix(opErr.Error(), "use of closed network connection") || strings.HasSuffix(opErr.Error(), "i/o timeout") {
+			err = nil
+		}
 	}
 	dst.Close()
 	errChan <- err
