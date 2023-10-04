@@ -33,7 +33,7 @@ func main() {
 		}
 
 		go func() {
-			err = balance.Balance(clientConn, clientConn.LocalAddr().String(), upstreams)
+			err := balance.Balance(clientConn, clientConn.LocalAddr().String(), upstreams)
 			if err != nil {
 				log.Error().Err(err).Msg("Error forwarding")
 			}
