@@ -8,23 +8,32 @@ import (
 	"github.com/vincentcreusot/leastconn-lb/balancer/ratelimiter"
 )
 
-type IBalancer interface {
+// Balancer provides load balancing functionality
+type Balancer interface {
 	Balance(conn *net.TCPConn, clientId string, allowedUpstreams []string, errorsChan chan []error)
 }
-type Balancer struct {
+
+// Config holds balancer configuration
+type Config struct {
+	Burst     int
+	Rate      int
+	Upstreams []string
+}
+
+type balance struct {
 	forwarder   forwarder.IForwarder
 	rateLimiter ratelimiter.IRateLimiter
 }
 
-func NewBalancer(burst int, rate int, upstreams []string) *Balancer {
-	b := Balancer{
-		forwarder:   forwarder.NewForwarder(upstreams),
-		rateLimiter: ratelimiter.NewRateLimiter(burst, rate),
+func NewBalancer(c Config) *balance {
+	b := balance{
+		forwarder:   forwarder.NewForwarder(c.Upstreams),
+		rateLimiter: ratelimiter.NewRateLimiter(c.Burst, c.Rate),
 	}
 	return &b
 }
 
-func (b *Balancer) Balance(conn net.Conn, clientId string, allowedUpstreams []string, errorsChan chan []error) {
+func (b *balance) Balance(conn net.Conn, clientId string, allowedUpstreams []string, errorsChan chan []error) {
 	if b.rateLimiter.Allow(clientId) {
 		b.forwarder.Forward(conn, allowedUpstreams, errorsChan)
 	} else {

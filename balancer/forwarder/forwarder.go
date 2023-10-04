@@ -45,7 +45,9 @@ func NewForwarder(upstreams []string) *Forwarder {
 func (f *Forwarder) Forward(src net.Conn, allowedUpstreams []string, errorsChan chan []error) {
 	if src != nil {
 		for i := 0; i < maxRetry; i++ {
-			log.Debug().Str("remoteAddr", src.RemoteAddr().String()).Msg("Retrying")
+			if i > 0 {
+				log.Debug().Str("remoteAddr", src.RemoteAddr().String()).Msg("Retrying")
+			}
 			dst := f.getLeastConn(allowedUpstreams)
 			if f.forward(src, dst, errorsChan) {
 				return
@@ -87,6 +89,7 @@ func (f *Forwarder) forward(src net.Conn, dst string, errorsChan chan []error) b
 	dstConn, err := net.Dial("tcp", dst)
 	if err != nil {
 		f.unhealthy[dst] = time.Now()
+		log.Debug().Str("upstream", dst).Msg("Marking as unhealthy")
 		src.Close()
 		return false
 	}
