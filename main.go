@@ -22,9 +22,9 @@ func main() {
 	defer listener.Close()
 
 	log.Info().Msg("Listening on 0.0.0.0:8888")
-	balance := balancer.NewBalancer(balancer.Config{Burst: 20, Rate: 30, Upstreams: upstreams})
+	balance := balancer.NewBalancer(balancer.Config{Burst: 5, Rate: 5, Upstreams: upstreams})
 
-	errorsChan := make(chan []error)
+	errorsChan := make(chan error, 10)
 	// Accept incoming connections and forward them to upstream servers
 	for {
 		clientConn, err := listener.Accept()
@@ -39,9 +39,7 @@ func main() {
 
 }
 
-func displayErrors(errorsChan chan []error) {
-	errs := <-errorsChan
-	for _, err := range errs {
-		log.Debug().Err(err)
-	}
+func displayErrors(errorsChan <-chan error) {
+	err := <-errorsChan
+	log.Error().Err(err)
 }

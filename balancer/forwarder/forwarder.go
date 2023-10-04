@@ -1,8 +1,10 @@
 package forwarder
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -25,7 +27,7 @@ type forward struct {
 }
 
 type Forwarder interface {
-	Forward(src net.Conn, allowedUpstreams []string, errorsChan chan []error)
+	Forward(src net.Conn, allowedUpstreams []string) error
 }
 
 // NewForwarder creates a new Forwarder.
@@ -44,23 +46,22 @@ func NewForwarder(upstreams []string) *forward {
 }
 
 // Forward forwards the connection src to the destination with the least connections.
-func (f *forward) Forward(src net.Conn, allowedUpstreams []string, errorsChan chan []error) {
+func (f *forward) Forward(src net.Conn, allowedUpstreams []string) error {
 	if src != nil {
 		for i := 0; i < maxRetry; i++ {
 			if i > 0 {
 				log.Debug().Str("remoteAddr", src.RemoteAddr().String()).Msg("Retrying")
 			}
 			dst := f.getLeastConn(allowedUpstreams)
-			if f.forward(src, dst, errorsChan) {
-				return
+			if success, err := f.forward(src, dst); success {
+				return err
 			}
 		}
 
 		// Retries exceeded, return error
-		errorsChan <- []error{fmt.Errorf("max retries exceeded for %s", src.RemoteAddr())}
-		return
+		return fmt.Errorf("max retries exceeded for %s", src.RemoteAddr())
 	}
-	errorsChan <- []error{fmt.Errorf("connection is null")}
+	return fmt.Errorf("connection is null")
 }
 
 func (f *forward) getLeastConn(allowed []string) string {
@@ -68,13 +69,13 @@ func (f *forward) getLeastConn(allowed []string) string {
 	defer f.mu.Unlock()
 
 	leastUsed := ""
-	var leastCount int32
+	var leastCount int32 = math.MaxInt32
 	for _, dst := range allowed {
 		if f.isUnhealthy(dst) {
 			continue
 		}
 		count := f.upstreams[dst].Load()
-		if leastUsed == "" || count < leastCount {
+		if count < leastCount {
 
 			leastUsed = dst
 			leastCount = count
@@ -84,7 +85,8 @@ func (f *forward) getLeastConn(allowed []string) string {
 	return leastUsed
 }
 
-func (f *forward) forward(src net.Conn, dst string, errorsChan chan []error) bool {
+// forward returns false if the upstream is unhealthy
+func (f *forward) forward(src net.Conn, dst string) (bool, error) {
 	defer src.Close()
 	log.Debug().Str("destination", dst).Msg("Forwarding to")
 
@@ -92,7 +94,7 @@ func (f *forward) forward(src net.Conn, dst string, errorsChan chan []error) boo
 	if err != nil {
 		f.unhealthy[dst] = time.Now()
 		log.Debug().Str("upstream", dst).Msg("Marking as unhealthy")
-		return false
+		return false, nil
 	}
 	defer dstConn.Close()
 
@@ -100,21 +102,15 @@ func (f *forward) forward(src net.Conn, dst string, errorsChan chan []error) boo
 	internalErrChan := make(chan error, 2)
 	go f.copyData(dstConn, src, internalErrChan)
 	go f.copyData(src, dstConn, internalErrChan)
-	errorsSlice := make([]error, 0)
+
 	// TODO find the reason why it's needed
 	dstConn.SetReadDeadline(time.Now().Add(terminationDelay))
-	internalErr := <-internalErrChan
+	err1 := <-internalErrChan
+	err2 := <-internalErrChan
 
-	if internalErr != nil {
-		errorsSlice = append(errorsSlice, internalErr)
-	}
-	internalErr = <-internalErrChan
-	if internalErr != nil {
-		errorsSlice = append(errorsSlice, internalErr)
-	}
 	f.decrementConnectionCount(dst)
-	errorsChan <- errorsSlice
-	return true
+
+	return true, errors.Join(err1, err2)
 }
 
 // Function to copy data between two connections

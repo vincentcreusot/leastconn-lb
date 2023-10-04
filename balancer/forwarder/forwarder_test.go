@@ -31,7 +31,7 @@ func TestForward(t *testing.T) {
 	lAddr, _ := net.ResolveTCPAddr("tcp", "localhost:0")
 	listener, err := net.ListenTCP("tcp", lAddr)
 	assert.NoError(t, err)
-	errorsChan := make(chan []error, 1)
+	errorsChan := make(chan error, 1)
 	go listenForTestRequest(f, listener, servers, errorsChan)
 	// Write to client side
 	resp, err := http.Get("http://" + listener.Addr().String() + "/anything")
@@ -43,13 +43,13 @@ func TestForward(t *testing.T) {
 	assert.Equal(t, string(body), "<html><body>server1</body></html>\n")
 	resp.Body.Close()
 	errs := <-errorsChan
-	assert.Equal(t, 0, len(errs))
+	assert.NoError(t, errs)
 	firstServerUpCount := f.upstreams[srv1.Listener.Addr().String()]
 	assert.Equal(t, (int32)(0), firstServerUpCount.Load())
 
 }
 
-func listenForTestRequest(f *forward, listener *net.TCPListener, urls []string, errorsChan chan []error) {
+func listenForTestRequest(f *forward, listener *net.TCPListener, urls []string, errorsChan chan<- error) {
 
 	for {
 		clientConn, err := listener.Accept()
@@ -58,6 +58,7 @@ func listenForTestRequest(f *forward, listener *net.TCPListener, urls []string, 
 			continue
 		}
 
-		go f.Forward(clientConn.(*net.TCPConn), urls, errorsChan)
+		err = f.Forward(clientConn, urls)
+		errorsChan <- err
 	}
 }

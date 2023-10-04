@@ -1,6 +1,7 @@
 package balancer
 
 import (
+	"fmt"
 	"net"
 
 	"github.com/rs/zerolog/log"
@@ -33,11 +34,14 @@ func NewBalancer(c Config) *balance {
 	return &b
 }
 
-func (b *balance) Balance(conn net.Conn, clientId string, allowedUpstreams []string, errorsChan chan []error) {
+func (b *balance) Balance(conn net.Conn, clientId string, allowedUpstreams []string, errorsChan chan error) {
+	var err error
 	if b.rateLimiter.Allow(clientId) {
-		b.forwarder.Forward(conn, allowedUpstreams, errorsChan)
+		err = b.forwarder.Forward(conn, allowedUpstreams)
 	} else {
 		log.Debug().Str("client", clientId).Msg("limited")
+		err = fmt.Errorf("client rate limited")
 		conn.Close()
 	}
+	errorsChan <- err
 }
