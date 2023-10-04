@@ -24,7 +24,6 @@ func main() {
 	log.Info().Msg("Listening on 0.0.0.0:8888")
 	balance := balancer.NewBalancer(balancer.Config{Burst: 20, Rate: 20, Upstreams: upstreams})
 
-	errorsChan := make(chan error, 1000)
 	// Accept incoming connections and forward them to upstream servers
 	for {
 		clientConn, err := listener.Accept()
@@ -33,15 +32,12 @@ func main() {
 			continue
 		}
 
-		go balance.Balance(clientConn, clientConn.LocalAddr().String(), upstreams, errorsChan)
-		go displayErrors(errorsChan)
+		go func() {
+			err = balance.Balance(clientConn, clientConn.LocalAddr().String(), upstreams)
+			if err != nil {
+				log.Error().Err(err).Msg("Error forwarding")
+			}
+		}()
 	}
 
-}
-
-func displayErrors(errorsChan <-chan error) {
-	err := <-errorsChan
-	if err != nil {
-		log.Error().Err(err).Msg("Error forwarding")
-	}
 }

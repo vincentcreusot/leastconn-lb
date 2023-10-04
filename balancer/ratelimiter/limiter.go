@@ -6,7 +6,7 @@ import (
 	"golang.org/x/time/rate"
 )
 
-type IRateLimiter interface {
+type RateLimiter interface {
 	Allow(clientId string) bool
 }
 type client struct {
@@ -14,22 +14,22 @@ type client struct {
 	// can include a lastRequestTime to permit cleaning periodically
 }
 
-type Ratelimiter struct {
+type ratelimit struct {
 	clients map[string]*client
 	burst   int
 	rate    int
 	mu      sync.Mutex
 }
 
-func NewRateLimiter(burst, rate int) *Ratelimiter {
-	return &Ratelimiter{
+func NewRateLimiter(burst, rate int) *ratelimit {
+	return &ratelimit{
 		clients: make(map[string]*client),
 		burst:   burst,
 		rate:    rate,
 	}
 }
 
-func (r *Ratelimiter) Allow(clientId string) bool {
+func (r *ratelimit) Allow(clientId string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	c, ok := r.clients[clientId]
