@@ -21,7 +21,7 @@ type Config struct {
 }
 
 type balance struct {
-	forwarder   forwarder.IForwarder
+	forwarder   forwarder.Forwarder
 	rateLimiter ratelimiter.IRateLimiter
 }
 

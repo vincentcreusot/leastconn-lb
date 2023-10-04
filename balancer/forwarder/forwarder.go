@@ -11,23 +11,25 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-const terminationDelay = 2 * time.Second
-const maxRetry = 3
-const unhealthyTimeout = 30 * time.Second
+const (
+	terminationDelay = 2 * time.Second
+	maxRetry         = 3
+	unhealthyTimeout = 30 * time.Second
+)
 
-// Forwarder forwards connections from src to dst using the least connections algorithm.
-type Forwarder struct {
+// forward forwards connections from src to dst using the least connections algorithm.
+type forward struct {
 	upstreams map[string]*atomic.Int32
 	unhealthy map[string]time.Time
 	mu        sync.Mutex
 }
 
-type IForwarder interface {
+type Forwarder interface {
 	Forward(src net.Conn, allowedUpstreams []string, errorsChan chan []error)
 }
 
 // NewForwarder creates a new Forwarder.
-func NewForwarder(upstreams []string) *Forwarder {
+func NewForwarder(upstreams []string) *forward {
 	urlMap := make(map[string]*atomic.Int32)
 	for _, upstream := range upstreams {
 		atomicZero := atomic.Int32{}
@@ -35,14 +37,14 @@ func NewForwarder(upstreams []string) *Forwarder {
 		urlMap[upstream] = &atomicZero
 	}
 
-	return &Forwarder{
+	return &forward{
 		upstreams: urlMap,
 		unhealthy: make(map[string]time.Time),
 	}
 }
 
 // Forward forwards the connection src to the destination with the least connections.
-func (f *Forwarder) Forward(src net.Conn, allowedUpstreams []string, errorsChan chan []error) {
+func (f *forward) Forward(src net.Conn, allowedUpstreams []string, errorsChan chan []error) {
 	if src != nil {
 		for i := 0; i < maxRetry; i++ {
 			if i > 0 {
@@ -61,7 +63,7 @@ func (f *Forwarder) Forward(src net.Conn, allowedUpstreams []string, errorsChan 
 	errorsChan <- []error{fmt.Errorf("connection is null")}
 }
 
-func (f *Forwarder) getLeastConn(allowed []string) string {
+func (f *forward) getLeastConn(allowed []string) string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -82,7 +84,7 @@ func (f *Forwarder) getLeastConn(allowed []string) string {
 	return leastUsed
 }
 
-func (f *Forwarder) forward(src net.Conn, dst string, errorsChan chan []error) bool {
+func (f *forward) forward(src net.Conn, dst string, errorsChan chan []error) bool {
 	defer src.Close()
 	log.Debug().Str("destination", dst).Msg("Forwarding to")
 
@@ -90,7 +92,6 @@ func (f *Forwarder) forward(src net.Conn, dst string, errorsChan chan []error) b
 	if err != nil {
 		f.unhealthy[dst] = time.Now()
 		log.Debug().Str("upstream", dst).Msg("Marking as unhealthy")
-		src.Close()
 		return false
 	}
 	defer dstConn.Close()
@@ -117,7 +118,7 @@ func (f *Forwarder) forward(src net.Conn, dst string, errorsChan chan []error) b
 }
 
 // Function to copy data between two connections
-func (f *Forwarder) copyData(dst io.WriteCloser, src io.Reader, errChan chan error) {
+func (f *forward) copyData(dst io.WriteCloser, src io.Reader, errChan chan error) {
 	_, err := io.Copy(dst, src)
 	// hack to remove normal close from errors
 	e, ok := err.(*net.OpError)
@@ -129,7 +130,7 @@ func (f *Forwarder) copyData(dst io.WriteCloser, src io.Reader, errChan chan err
 }
 
 // Function to increment the connection count for an upstream server
-func (f *Forwarder) incrementConnectionCount(upstream string) {
+func (f *forward) incrementConnectionCount(upstream string) {
 	f.mu.Lock()
 	val := f.upstreams[upstream]
 	val.Add(1)
@@ -137,7 +138,7 @@ func (f *Forwarder) incrementConnectionCount(upstream string) {
 }
 
 // Function to decrement the connection count for an upstream server
-func (f *Forwarder) decrementConnectionCount(upstream string) {
+func (f *forward) decrementConnectionCount(upstream string) {
 	f.mu.Lock()
 	val := f.upstreams[upstream]
 	if val.Load() < 1 {
@@ -147,7 +148,7 @@ func (f *Forwarder) decrementConnectionCount(upstream string) {
 	f.mu.Unlock()
 }
 
-func (f *Forwarder) isUnhealthy(upstream string) bool {
+func (f *forward) isUnhealthy(upstream string) bool {
 	unhealthyTime, found := f.unhealthy[upstream]
 	if !found {
 		return false

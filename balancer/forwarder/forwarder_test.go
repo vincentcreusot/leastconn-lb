@@ -2,12 +2,13 @@ package forwarder
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestForward(t *testing.T) {
@@ -48,7 +49,7 @@ func TestForward(t *testing.T) {
 
 }
 
-func listenForTestRequest(f *Forwarder, listener *net.TCPListener, urls []string, errorsChan chan []error) {
+func listenForTestRequest(f *forward, listener *net.TCPListener, urls []string, errorsChan chan []error) {
 
 	for {
 		clientConn, err := listener.Accept()
