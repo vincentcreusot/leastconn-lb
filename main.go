@@ -2,6 +2,7 @@ package main
 
 import (
 	"net"
+	"os"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -17,7 +18,7 @@ func main() {
 	listener, err := net.Listen("tcp", "0.0.0.0:8888")
 	if err != nil {
 		log.Error().Err(err).Msg("Error listening")
-		return
+		os.Exit(1)
 	}
 	defer listener.Close()
 
