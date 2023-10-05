@@ -9,7 +9,7 @@ import (
 
 // Balancer provides load balancing functionality
 type Balancer interface {
-	Balance(conn *net.TCPConn, clientId string, allowedUpstreams []string) error
+	Balance(conn net.Conn, clientId string, allowedUpstreams []string) error
 }
 
 // Config holds balancer configuration
