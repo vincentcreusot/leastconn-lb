@@ -16,12 +16,15 @@ func TestForward(t *testing.T) {
 	srv1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "<html><body>server1</body></html>\n")
 	}))
-	defer srv1.Close()
 
 	srv2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "<html><body>server2</body></html>\n")
 	}))
-	defer srv2.Close()
+
+	t.Cleanup(func() {
+		srv1.Close()
+		srv2.Close()
+	})
 
 	servers := []string{srv1.Listener.Addr().String(), srv2.Listener.Addr().String()}
 
