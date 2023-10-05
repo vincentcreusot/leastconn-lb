@@ -1,7 +1,6 @@
 package balancer
 
 import (
-	"fmt"
 	"net"
 
 	"github.com/vincentcreusot/leastconn-lb/balancer/forwarder"
@@ -38,8 +37,13 @@ func (b *balance) Balance(conn net.Conn, clientId string, allowedUpstreams []str
 	if b.rateLimiter.Allow(clientId) {
 		err = b.forwarder.Forward(conn, allowedUpstreams)
 	} else {
-		err = fmt.Errorf("client rate limited")
-		conn.Close()
+		err = &RateLimiterError{}
 	}
 	return err
+}
+
+type RateLimiterError struct{}
+
+func (e *RateLimiterError) Error() string {
+	return "client rate limited"
 }

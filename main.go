@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"net"
 	"os"
 
@@ -36,6 +37,9 @@ func main() {
 		go func() {
 			err := balance.Balance(clientConn, clientConn.LocalAddr().String(), upstreams)
 			if err != nil {
+				if errors.Is(err, &balancer.RateLimiterError{}) {
+					clientConn.Close()
+				}
 				log.Error().Err(err).Msg("Error forwarding")
 			}
 		}()
