@@ -117,7 +117,7 @@ func (f *forward) forward(src net.Conn, dst *upstream) (bool, error) {
 		err2 = f.copyData(src, dstConn)
 	}()
 
-	// TODO find the reason why it's needed
+	// TODO find the reason why it's needed in unit test
 	dstConn.SetReadDeadline(time.Now().Add(terminationDelay))
 	wg.Wait()
 	decrementConnectionCount(dst)

@@ -15,17 +15,13 @@ import (
 func TestForward(t *testing.T) {
 
 	srv1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, "<html><body>server1</body></html>\n")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, "<html><body>server1</body></html>\n")
 	}))
 
 	srv2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, "<html><body>server2</body></html>\n")
+		fmt.Fprintln(w, "<html><body>server2</body></html>")
 	}))
-
-	t.Cleanup(func() {
-		srv1.Close()
-		srv2.Close()
-	})
 
 	servers := []string{srv1.Listener.Addr().String(), srv2.Listener.Addr().String()}
 
@@ -41,10 +37,15 @@ func TestForward(t *testing.T) {
 	resp, err := http.Get("http://" + listener.Addr().String() + "/anything")
 	assert.NoError(t, err)
 
+	t.Cleanup(func() {
+		srv1.Close()
+		srv2.Close()
+		resp.Body.Close()
+	})
 	body, err := io.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, string(body), "<html><body>server1</body></html>\n")
-	resp.Body.Close()
+
 	select {
 	case errs := <-errorsChan:
 		assert.NoError(t, errs)
