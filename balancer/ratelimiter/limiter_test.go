@@ -12,10 +12,15 @@ func TestRatelimiter_Allow_Burst(t *testing.T) {
 
 	r := NewRateLimiter(10, 1)
 
+	now := time.Now()
+	clock := &mockClock{now}
+
+	r.clock = clock
 	// Allow for new client should succeed
 	assert.True(t, r.Allow("client1"))
 	// wait to refill burst
-	time.Sleep(1 * time.Second)
+	clock.TimeNow = now.Add(1 * time.Second)
+
 	// Verify rate limiting
 	for i := 0; i < 10; i++ {
 		assert.True(t, r.Allow("client1"))
@@ -24,8 +29,8 @@ func TestRatelimiter_Allow_Burst(t *testing.T) {
 	// Should be rate limited now
 	assert.False(t, r.Allow("client1"))
 
-	// Wait for bucket to refill
-	time.Sleep(1 * time.Second)
+	// Wait for bucket to refill -- 2 secs from beginning
+	clock.TimeNow = now.Add(2 * time.Second)
 
 	// Should allow again
 	assert.True(t, r.Allow("client1"))
@@ -34,20 +39,30 @@ func TestRatelimiter_Allow_Burst(t *testing.T) {
 	assert.True(t, r.Allow("client2"))
 }
 
+type mockClock struct {
+	TimeNow time.Time
+}
+
+func (m *mockClock) Now() time.Time {
+	return m.TimeNow
+}
+
 func TestRate(t *testing.T) {
 
 	r := NewRateLimiter(10, 5)
+	now := time.Now()
+	clock := &mockClock{now}
 
-	ticker := time.NewTicker(200 * time.Millisecond)
-	defer ticker.Stop()
+	r.clock = clock
 
 	// pass the burst
 	for i := 0; i < 10; i++ {
 		assert.True(t, r.Allow("client"))
 	}
 	// allowed rate
-	for i := 0; i < 5; i++ {
-		<-ticker.C
+	for i := 1; i < 6; i++ {
+		tick := time.Duration(i) * 200 * time.Millisecond
+		clock.TimeNow = now.Add(tick)
 		assert.True(t, r.Allow("client"))
 		fmt.Println(i)
 	}
@@ -56,7 +71,7 @@ func TestRate(t *testing.T) {
 	assert.False(t, r.Allow("client"))
 
 	// Wait for full second
-	time.Sleep(1000 * time.Millisecond)
+	clock.TimeNow = now.Add(2 * time.Second)
 
 	// Should allow again
 	assert.True(t, r.Allow("client"))
