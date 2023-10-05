@@ -137,12 +137,12 @@ func (f *forward) copyData(dst io.WriteCloser, src io.Reader) error {
 }
 
 // Function to increment the connection count for an upstream server
-func (f *forward) incrementConnectionCount(u *upstream) {
+func incrementConnectionCount(u *upstream) {
 	u.load.Add(1)
 }
 
 // Function to decrement the connection count for an upstream server
-func (f *forward) decrementConnectionCount(u *upstream) {
+func decrementConnectionCount(u *upstream) {
 	u.load.Add(-1)
 }
 
