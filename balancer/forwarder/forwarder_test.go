@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -44,8 +45,13 @@ func TestForward(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, string(body), "<html><body>server1</body></html>\n")
 	resp.Body.Close()
-	errs := <-errorsChan
-	assert.NoError(t, errs)
+	select {
+	case errs := <-errorsChan:
+		assert.NoError(t, errs)
+	case <-time.After(5 * time.Second):
+		assert.Fail(t, "timeout waiting for errors")
+	}
+
 }
 
 func listenForTestRequest(f *forward, listener *net.TCPListener, urls []string, errorsChan chan<- error) {
