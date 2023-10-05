@@ -103,7 +103,7 @@ func (f *forward) forward(src net.Conn, dst *upstream) (bool, error) {
 	}
 	defer dstConn.Close()
 
-	f.incrementConnectionCount(dst)
+	incrementConnectionCount(dst)
 	var wg sync.WaitGroup
 	var err1, err2 error
 	wg.Add(1)
@@ -120,7 +120,7 @@ func (f *forward) forward(src net.Conn, dst *upstream) (bool, error) {
 	// TODO find the reason why it's needed
 	dstConn.SetReadDeadline(time.Now().Add(terminationDelay))
 	wg.Wait()
-	f.decrementConnectionCount(dst)
+	decrementConnectionCount(dst)
 
 	return true, errors.Join(err1, err2)
 }
