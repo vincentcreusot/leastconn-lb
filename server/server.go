@@ -1,6 +1,7 @@
 package server
 
 import (
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -28,16 +29,26 @@ type serve struct {
 	authScheme *AuthScheme
 }
 
-func NewServer(address string, upstreams []string) (Server, error) {
-	tlsConfig, err := getTlsConfig()
+type Config struct {
+	Address        string
+	Upstreams      []string
+	CaCertFile     string
+	ServerCertFile string
+	ServerKeyFile  string
+}
+
+func NewServer(config Config) (Server, error) {
+	tlsConfig, err := getTlsConfig(config)
 	if err != nil {
 		return nil, err
 	}
-	listener, err := tls.Listen("tcp", address, tlsConfig)
+	log.Info().Msg("Starting server ...")
+	listener, err := tls.Listen("tcp", config.Address, tlsConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to listen on address %s: %w", address, err)
+		return nil, fmt.Errorf("failed to listen on address %s: %w", config.Address, err)
 	}
-	balance := balancer.NewBalancer(balancer.Config{Burst: 20, Rate: 20, Upstreams: upstreams})
+	// TODO hard coded burst and rate would need to go to a config
+	balance := balancer.NewBalancer(balancer.Config{Burst: 20, Rate: 20, Upstreams: config.Upstreams})
 	auth := NewAuthScheme()
 	return &serve{
 		listener:   listener,
@@ -48,29 +59,34 @@ func NewServer(address string, upstreams []string) (Server, error) {
 	}, nil
 }
 
-func getTlsConfig() (*tls.Config, error) {
-	caCert, _ := os.ReadFile("ca.crt")
+func getTlsConfig(c Config) (*tls.Config, error) {
+	caCert, err := os.ReadFile(c.CaCertFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load ca certificate: %w", err)
+	}
 	caCertPool := x509.NewCertPool()
 	caCertPool.AppendCertsFromPEM(caCert)
-	cer, err := tls.LoadX509KeyPair("certs/cert.pem", "certsk/ey.pem")
+	cer, err := tls.LoadX509KeyPair(c.ServerCertFile, c.ServerKeyFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load certificate: %w", err)
 	}
 
 	cfg := &tls.Config{
-		MinVersion: tls.VersionTLS12,
-		CipherSuites: []uint16{
-			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
-			tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
-		},
+		// MinVersion: tls.VersionTLS12,
+		// CipherSuites: []uint16{
+		// 	tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+		// 	tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+		// 	tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+		// 	tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+		// 	tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+		// 	tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
+		// },
 		Certificates: []tls.Certificate{cer},
 		ClientAuth:   tls.RequireAndVerifyClientCert, // set mutual tls
-		ClientCAs:    caCertPool,
+		// ClientCAs:    caCertPool,
+		// RootCAs:      caCertPool,
 	}
+	cfg.Rand = rand.Reader
 
 	return cfg, nil
 }
@@ -109,6 +125,11 @@ func (s *serve) handleConnection(conn *tls.Conn) {
 	defer conn.Close()
 	// TODO understand the list of Peer Certificates and see which one to take
 	// index 0 should be the leaf certificate so the host one
+	peersCerts := conn.ConnectionState().PeerCertificates
+	if len(peersCerts) == 0 {
+		log.Warn().Msg("No certificate found")
+		return
+	}
 	clientId := conn.ConnectionState().PeerCertificates[0].Subject.CommonName
 
 	allowed := s.authScheme.GetAllowedUpstreams(clientId)
