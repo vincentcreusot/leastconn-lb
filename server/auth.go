@@ -5,14 +5,14 @@ type AuthScheme struct {
 }
 
 func NewAuthScheme() *AuthScheme {
-	// TODO should go into config, hardcoding for now
-	m := map[string][]string{
-		"client1.lb.com": {"localhost:9801", "localhost:9802"},
-		"client2.lb.com": {"localhost:9802"},
-	}
+	m := make(map[string][]string)
 	return &AuthScheme{
 		allowedClients: m,
 	}
+}
+
+func (a *AuthScheme) AllowClient(clientID string, upstreams []string) {
+	a.allowedClients[clientID] = upstreams
 }
 
 func (a *AuthScheme) GetAllowedUpstreams(clientID string) []string {

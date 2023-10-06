@@ -18,6 +18,7 @@ import (
 type Server interface {
 	Start()
 	Stop()
+	GetAuthScheme() *AuthScheme
 }
 
 type serve struct {
@@ -173,4 +174,9 @@ func (s *serve) Stop() {
 		log.Warn().Msg("Timed out waiting for connections to finish.")
 		return
 	}
+}
+
+// GetAuthScheme returns the auth scheme.
+func (s *serve) GetAuthScheme() *AuthScheme {
+	return s.authScheme
 }

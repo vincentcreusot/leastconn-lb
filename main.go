@@ -30,6 +30,11 @@ func main() {
 		log.Fatal().Err(err).Msg("failed to create server")
 		sigs <- syscall.SIGINT
 	}
+	// Setting auth scheme
+	// TODO: should go into config, hardcoding for now
+	s.GetAuthScheme().AllowClient("client1.lb.com", []string{"localhost:9801", "localhost:9802"})
+	s.GetAuthScheme().AllowClient("client2.lb.com", []string{"localhost:9802"})
+
 	s.Start()
 
 	<-sigs

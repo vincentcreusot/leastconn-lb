@@ -35,3 +35,18 @@ The balancer sequentiallly applies the following:
 The `test` folder contains a `docker-compose.yml` file to spin up dummy servers for testing.
 
 A bash script is provided to call parallelly a big number of requests.
+
+## Server
+
+### MTLS
+The server requires mTLS communication, so it needs certificates and keys.
+
+The implementation takes shortcuts as to certificates locations, they are hardcoded to:
+- CA Certificate: `certs/ca/ca.crt`
+- Server cert file: `certs/server/server.crt`
+- Server key file in PEM format:  `certs/server/server.key.pem`
+
+### Authotization scheme
+The server supports a simple authorization scheme based on the client certificate CN.
+The scheme is hardcoded in the `main.go` file for now.
+
