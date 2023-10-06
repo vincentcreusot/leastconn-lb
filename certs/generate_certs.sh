@@ -20,6 +20,7 @@ openssl x509 -req -days 20 -sha256 -in client/client1.csr -CA ca/ca.crt -CAkey c
 
 # Create client CRT
 openssl genrsa -aes256 -out client/client2.key 4096
+openssl rsa -in client/client2.key -out client/client2.key.pem
 openssl req -new -subj "/C=CA/O=lb/CN=client2.lb.com" -key client/client2.key -out client/client2.csr
 # Validate CSR
 openssl x509 -req -days 20 -sha256 -in client/client2.csr -CA ca/ca.crt -CAkey ca/ca.key -set_serial 2 -out client/client2.crt

@@ -15,10 +15,6 @@ func NewAuthScheme() *AuthScheme {
 	}
 }
 
-func (a *AuthScheme) AllowClient(clientID string, upstreams []string) {
-	a.allowedClients[clientID] = upstreams
-}
-
 func (a *AuthScheme) GetAllowedUpstreams(clientID string) []string {
 	allowed, ok := a.allowedClients[clientID]
 	if !ok {
