@@ -4,14 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"os"
-	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"slices"
 
 	"github.com/rs/zerolog/log"
 )
@@ -29,7 +27,7 @@ type upstream struct {
 
 // forward forwards connections from src to dst using the least connections algorithm.
 type forward struct {
-	ups         []*upstream
+	upstreams   map[string]*upstream
 	unhealthy   map[string]time.Time
 	healthMutex sync.Mutex
 }
@@ -40,15 +38,14 @@ type Forwarder interface {
 
 // NewForwarder creates a new Forwarder.
 func NewForwarder(upstreams []string) *forward {
-	upstreamSlice := make([]*upstream, len(upstreams))
-	for i, u := range upstreams {
+	upstreamsMap := make(map[string]*upstream)
+	for _, u := range upstreams {
 		atomicZero := atomic.Int32{}
 		atomicZero.Store(0)
-		upstreamSlice[i] = &upstream{addr: u, load: &atomicZero}
+		upstreamsMap[u] = &upstream{addr: u, load: &atomicZero}
 	}
-
 	return &forward{
-		ups:       upstreamSlice,
+		upstreams: upstreamsMap,
 		unhealthy: make(map[string]time.Time),
 	}
 }
@@ -78,16 +75,22 @@ func (f *forward) Forward(src net.Conn, allowedUpstreams []string) error {
 }
 
 func (f *forward) getLeastConn(allowed []string) *upstream {
-	upstreams := append(f.ups[:0:0], f.ups...)
-	sort.SliceStable(upstreams, func(i, j int) bool {
-		return upstreams[i].load.Load() < upstreams[j].load.Load()
-	})
-	for _, v := range upstreams {
-		if slices.Contains(allowed, v.addr) {
-			return v
+	var leastUsed *upstream
+	var leastCount int32 = math.MaxInt32
+	for _, dst := range allowed {
+		if f.isUnhealthy(dst) {
+			continue
+		}
+		// no checking, we consider the instanciator creates correct lists
+		up := f.upstreams[dst]
+		count := up.load.Load()
+		if count < leastCount {
+			leastUsed = up
+			leastCount = count
 		}
 	}
-	return nil
+
+	return leastUsed
 }
 
 // forward returns false if the upstream is unhealthy
@@ -103,7 +106,10 @@ func (f *forward) forward(src net.Conn, dst *upstream) (bool, error) {
 	}
 	defer dstConn.Close()
 
-	incrementConnectionCount(dst)
+	// TODO find the reason why it's needed in unit test
+	dstConn.SetReadDeadline(time.Now().Add(terminationDelay))
+
+	dst.incrementConnectionCount()
 	var wg sync.WaitGroup
 	var err1, err2 error
 	wg.Add(1)
@@ -117,10 +123,8 @@ func (f *forward) forward(src net.Conn, dst *upstream) (bool, error) {
 		err2 = f.copyData(src, dstConn)
 	}()
 
-	// TODO find the reason why it's needed in unit test
-	dstConn.SetReadDeadline(time.Now().Add(terminationDelay))
 	wg.Wait()
-	decrementConnectionCount(dst)
+	dst.decrementConnectionCount()
 
 	return true, errors.Join(err1, err2)
 }
@@ -137,12 +141,12 @@ func (f *forward) copyData(dst io.WriteCloser, src io.Reader) error {
 }
 
 // Function to increment the connection count for an upstream server
-func incrementConnectionCount(u *upstream) {
+func (u *upstream) incrementConnectionCount() {
 	u.load.Add(1)
 }
 
 // Function to decrement the connection count for an upstream server
-func decrementConnectionCount(u *upstream) {
+func (u *upstream) decrementConnectionCount() {
 	u.load.Add(-1)
 }
 
