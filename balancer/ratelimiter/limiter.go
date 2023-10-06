@@ -8,10 +8,12 @@ import (
 	"golang.org/x/time/rate"
 )
 
+// Clock used to override the time used for rate limiting
 type Clock interface {
 	Now() time.Time
 }
 
+// RateLimiter rate limiter interface to check if we can allow a connection
 type RateLimiter interface {
 	Allow(clientId string) bool
 }
@@ -27,6 +29,7 @@ type ratelimit struct {
 	clock   Clock
 }
 
+// NewRateLimiter constructor for RateLimiter
 func NewRateLimiter(burst, rate int) *ratelimit {
 	return &ratelimit{
 		clients: make(map[string]*client),
@@ -36,6 +39,7 @@ func NewRateLimiter(burst, rate int) *ratelimit {
 	}
 }
 
+// Allow returns true if the client does not pass the rate limit
 func (r *ratelimit) Allow(clientId string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -52,6 +56,7 @@ func (r *ratelimit) Allow(clientId string) bool {
 
 type realtime struct{}
 
+// Now returns the now time
 func (r *realtime) Now() time.Time {
 	return time.Now()
 }

@@ -24,6 +24,7 @@ type balance struct {
 	rateLimiter ratelimiter.RateLimiter
 }
 
+// NewBalancer constructor for Balancer
 func NewBalancer(c Config) *balance {
 	b := balance{
 		forwarder:   forwarder.NewForwarder(c.Upstreams),
@@ -32,6 +33,8 @@ func NewBalancer(c Config) *balance {
 	return &b
 }
 
+// Balance load balance a connect by calling RateLimier with the clientId and the forwarder with
+// the list of allowed upstreams
 func (b *balance) Balance(conn net.Conn, clientId string, allowedUpstreams []string) error {
 	var err error
 	if b.rateLimiter.Allow(clientId) {
@@ -42,8 +45,10 @@ func (b *balance) Balance(conn net.Conn, clientId string, allowedUpstreams []str
 	return err
 }
 
+// RateLimiterError error used when connection has been rate limiter
 type RateLimiterError struct{}
 
+// Error string version of the error
 func (e *RateLimiterError) Error() string {
 	return "client rate limited"
 }
