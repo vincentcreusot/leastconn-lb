@@ -126,21 +126,27 @@ func (s *serve) handleConnection(conn *tls.Conn) {
 	defer conn.Close()
 
 	// need to do handshake first to get the certificates
-	conn.Handshake()
-
+	// that part is done when the first bytes are exchanged otherwise
+	// stated in the tls package documentation
+	// "Most uses of this package need not call HandshakeContext explicitly: the
+	// first Read or Write will call it automatically."
+	err := conn.Handshake()
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to handshake")
+		return
+	}
 	peersCerts := conn.ConnectionState().PeerCertificates
 	if len(peersCerts) == 0 {
 		log.Warn().Msg("No certificate found")
 		return
 	}
 	clientId := conn.ConnectionState().PeerCertificates[0].Subject.CommonName
-
 	allowed := s.authScheme.GetAllowedUpstreams(clientId)
 	if allowed == nil {
 		log.Warn().Str("client", clientId).Msg("Client not allowed")
 		return
 	}
-	err := s.balancer.Balance(conn, clientId, allowed)
+	err = s.balancer.Balance(conn, clientId, allowed)
 	if err != nil {
 		if errors.Is(err, &balancer.RateLimiterError{}) {
 			log.Warn().Err(err).Msg("Connection rate limited")

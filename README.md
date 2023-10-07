@@ -9,6 +9,12 @@ Ths is a simple TCP load balancer that distributes incoming requests across mult
 
 ## Design
 The design is available [here](design/design.md)
+## Requirements / dependencies
+For the overall usage
+- docker
+- docker-compose
+- make
+- openssl
 
 ## Balancer library
 ### API
@@ -45,6 +51,16 @@ The implementation takes shortcuts as to certificates locations, they are hardco
 - CA Certificate: `certs/ca/ca.crt`
 - Server cert file: `certs/server/server.crt`
 - Server key file in PEM format:  `certs/server/server.key.pem`
+
+#### Testing
+Some scripts are provided to generate certificates and keys for testing. You will need to have `openssl` installed. They are located in the `certs` folder.
+The `generate_certs.sh` script generates the CA certificate and the server certificate and key + 2 clients certificates. 
+
+`generate_all_certs.sh` generates alternatives certificates to be able to test the rejection of the client certificate.
+
+`test-mtls.sh` tests the call to the server with 2 different clients.
+
+`test-mtls-alt.sh` tests the call with a certificate that does not use the trusted CA.
 
 ### Authotization scheme
 The server supports a simple authorization scheme based on the client certificate CN.
