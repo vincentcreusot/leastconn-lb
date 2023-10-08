@@ -165,6 +165,7 @@ func (s *serve) Start() {
 // Stop stop accepting and handling connections.
 func (s *serve) Stop() {
 	close(s.shutdown)
+	s.balancer.Stop()
 	s.listener.Close()
 
 	done := make(chan struct{})

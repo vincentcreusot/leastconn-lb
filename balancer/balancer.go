@@ -10,6 +10,7 @@ import (
 // Balancer provides load balancing functionality
 type Balancer interface {
 	Balance(conn net.Conn, clientId string, allowedUpstreams []string) error
+	Stop()
 }
 
 // Config holds balancer configuration
@@ -51,4 +52,8 @@ type RateLimiterError struct{}
 // Error string version of the error
 func (e *RateLimiterError) Error() string {
 	return "client rate limited"
+}
+
+func (b *balance) Stop() {
+	b.forwarder.Stop()
 }
