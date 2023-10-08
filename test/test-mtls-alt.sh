@@ -3,7 +3,7 @@ CERTS_FOLDER=$1
 
 SERVER_IP=127.0.0.1
 SERVER_NAME=server.lb.com
-PORT=8888
+PORT=9443
 DST=$SERVER_NAME:$PORT
 CLIENT_CERT_ALT=${CERTS_FOLDER}/client/client-alt.crt
 CLIENT_KEY_ALT=${CERTS_FOLDER}/client/client-alt.key.pem

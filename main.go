@@ -18,9 +18,9 @@ func main() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	// TODO: should go into config, hardcoding for now
-	upstreams := []string{"localhost:9801", "localhost:9802"}
+	upstreams := []string{"webapp1:80", "webapp2:80"}
 	s, err := server.NewServer(server.Config{
-		Address:        "0.0.0.0:8888",
+		Address:        "0.0.0.0:9443",
 		Upstreams:      upstreams,
 		CaCertFile:     "certs/ca/ca.crt",
 		ServerCertFile: "certs/server/server.crt",
@@ -32,8 +32,8 @@ func main() {
 	}
 	// Setting auth scheme
 	// TODO: should go into config, hardcoding for now
-	s.GetAuthScheme().AllowClient("client1.lb.com", []string{"localhost:9801", "localhost:9802"})
-	s.GetAuthScheme().AllowClient("client2.lb.com", []string{"localhost:9802"})
+	s.GetAuthScheme().AllowClient("client1.lb.com", []string{"webapp1:80", "webapp2:80"})
+	s.GetAuthScheme().AllowClient("client2.lb.com", []string{"webapp2:80"})
 
 	s.Start()
 

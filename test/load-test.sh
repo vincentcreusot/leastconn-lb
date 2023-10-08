@@ -4,7 +4,7 @@
 NUM_REQUESTS=20
 
 # Forwarder URL
-URL=http://localhost:8888
+URL=http://localhost:9443
 
 # Array to store errors
 ERRORS=()

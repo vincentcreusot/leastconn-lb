@@ -15,6 +15,10 @@ For the overall usage
 - docker-compose
 - make
 - openssl
+## Makefile
+A Makefile helps to build and run the project, and execute some recurrent tasks.
+Type `make help` to list all the targets.
+
 
 ## Balancer library
 ### API
@@ -43,7 +47,15 @@ The `test` folder contains a `docker-compose.yml` file to spin up dummy servers 
 A bash script is provided to call parallelly a big number of requests.
 
 ## Server
+The server is exposed on port 9443, which is hardcoded in `main.go`.
+### Docker
+There is a `Dockerfile`. It uses a multi-stage approach to build the binary and copy it into a scratch image.
 
+Running `make docker-run` launches the docker image after building it.
+
+A `docker-compose-yaml` is present at the root level which demonstrates the load balancing in docker containers.
+
+Running `make docker-compose` builds and run the composition.
 ### MTLS
 The server requires mTLS communication, so it needs certificates and keys.
 

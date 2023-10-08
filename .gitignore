@@ -24,3 +24,4 @@ go.work
 certs/ca
 certs/server
 certs/client
+bin/*
