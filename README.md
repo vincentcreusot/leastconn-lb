@@ -6,6 +6,8 @@ Ths is a simple TCP load balancer that distributes incoming requests across mult
 - it limits the rate of connections each client can do
 - it provides mTLS communication
 - it has an authorization scheme to authenticate clients
+- it checks if upstreams servers are healthy
+- it do not reuse connections
 
 ## Design
 The design is available [here](design/design.md)
