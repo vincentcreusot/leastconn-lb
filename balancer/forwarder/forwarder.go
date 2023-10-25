@@ -17,23 +17,31 @@ import (
 const (
 	terminationDelay = 2 * time.Second
 	maxRetry         = 3
-	unhealthyTimeout = 30 * time.Second
 )
 
 type upstream struct {
-	addr string
-	load *atomic.Int32
+	addr            string
+	load            *atomic.Int32
+	healthy         *atomic.Bool
+	healthcheckStop chan bool
 }
 
 // forward forwards connections from src to dst using the least connections algorithm.
 type forward struct {
-	upstreams   map[string]*upstream
-	unhealthy   map[string]time.Time
-	healthMutex sync.Mutex
+	upstreams map[string]*upstream
 }
 
 type Forwarder interface {
 	Forward(src net.Conn, allowedUpstreams []string) error
+	Stop()
+}
+
+// Stop stops the healthchecks for all upstreams.
+func (f *forward) Stop() {
+	for _, u := range f.upstreams {
+		u.healthcheckStop <- true
+		close(u.healthcheckStop)
+	}
 }
 
 // NewForwarder creates a new Forwarder.
@@ -42,11 +50,18 @@ func NewForwarder(upstreams []string) *forward {
 	for _, u := range upstreams {
 		atomicZero := atomic.Int32{}
 		atomicZero.Store(0)
-		upstreamsMap[u] = &upstream{addr: u, load: &atomicZero}
+		atomicTrue := atomic.Bool{}
+		atomicTrue.Store(true)
+		upstreamsMap[u] = &upstream{
+			addr:    u,
+			load:    &atomicZero,
+			healthy: &atomicTrue,
+		}
+		stopChan := upstreamsMap[u].startHealthchecks()
+		upstreamsMap[u].healthcheckStop = stopChan
 	}
 	return &forward{
 		upstreams: upstreamsMap,
-		unhealthy: make(map[string]time.Time),
 	}
 }
 
@@ -78,11 +93,14 @@ func (f *forward) getLeastConn(allowed []string) *upstream {
 	var leastUsed *upstream
 	var leastCount int32 = math.MaxInt32
 	for _, dst := range allowed {
-		if f.isUnhealthy(dst) {
-			continue
-		}
+		// if f.isUnhealthy(dst) {
+		// 	continue
+		// }
 		// no checking, we consider the instanciator creates correct lists
 		up := f.upstreams[dst]
+		if up.isUnhealthy() {
+			continue
+		}
 		count := up.load.Load()
 		if count < leastCount {
 			leastUsed = up
@@ -100,7 +118,7 @@ func (f *forward) forward(src net.Conn, dst *upstream) (bool, error) {
 
 	dstConn, err := net.Dial("tcp", dst.addr)
 	if err != nil {
-		f.setUnhealthy(dst.addr)
+		dst.setUnhealthy()
 		log.Debug().Str("upstream", dst.addr).Msg("Marking as unhealthy")
 		return false, nil
 	}
@@ -148,25 +166,4 @@ func (u *upstream) incrementConnectionCount() {
 // Function to decrement the connection count for an upstream server
 func (u *upstream) decrementConnectionCount() {
 	u.load.Add(-1)
-}
-
-func (f *forward) setUnhealthy(upstream string) {
-	f.healthMutex.Lock()
-	defer f.healthMutex.Unlock()
-	f.unhealthy[upstream] = time.Now()
-}
-
-func (f *forward) isUnhealthy(upstream string) bool {
-	f.healthMutex.Lock()
-	defer f.healthMutex.Unlock()
-	unhealthyTime, found := f.unhealthy[upstream]
-	if !found {
-		return false
-	}
-	if time.Since(unhealthyTime) > unhealthyTimeout {
-		delete(f.unhealthy, upstream)
-		return false
-	}
-	log.Debug().Str("upstream", upstream).Msg("Unhealthy")
-	return true
 }

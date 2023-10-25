@@ -1,48 +1,46 @@
 package main
 
 import (
-	"errors"
-	"net"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"github.com/vincentcreusot/leastconn-lb/balancer"
+	"github.com/vincentcreusot/leastconn-lb/server"
 )
 
 func main() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	zerolog.SetGlobalLevel(zerolog.DebugLevel)
 
-	upstreams := []string{"localhost:9801", "localhost:9802"}
-	// Listen for incoming connections on port 8888
-	listener, err := net.Listen("tcp", "0.0.0.0:8888")
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+	// TODO: should go into config, hardcoding for now
+	upstreams := []string{"webapp1:80", "webapp2:80"}
+	s, err := server.NewServer(server.Config{
+		Address:        "0.0.0.0:9443",
+		Upstreams:      upstreams,
+		CaCertFile:     "certs/ca/ca.crt",
+		ServerCertFile: "certs/server/server.crt",
+		ServerKeyFile:  "certs/server/server.key.pem",
+	})
 	if err != nil {
-		log.Error().Err(err).Msg("Error listening")
-		os.Exit(1)
+		log.Fatal().Err(err).Msg("failed to create server")
+		sigs <- syscall.SIGINT
 	}
-	defer listener.Close()
+	// Setting auth scheme
+	// TODO: should go into config, hardcoding for now
+	s.GetAuthScheme().AllowClient("client1.lb.com", []string{"webapp1:80", "webapp2:80"})
+	s.GetAuthScheme().AllowClient("client2.lb.com", []string{"webapp2:80"})
 
-	log.Info().Msg("Listening on 0.0.0.0:8888")
-	balance := balancer.NewBalancer(balancer.Config{Burst: 20, Rate: 20, Upstreams: upstreams})
+	s.Start()
 
-	// Accept incoming connections and forward them to upstream servers
-	for {
-		clientConn, err := listener.Accept()
-		if err != nil {
-			log.Warn().Err(err).Msg("Error accepting connection")
-			continue
-		}
+	<-sigs
 
-		go func() {
-			err := balance.Balance(clientConn, clientConn.LocalAddr().String(), upstreams)
-			if err != nil {
-				if errors.Is(err, &balancer.RateLimiterError{}) {
-					clientConn.Close()
-				}
-				log.Error().Err(err).Msg("Error forwarding")
-			}
-		}()
-	}
+	log.Info().Msg("Shutting down server...")
+	s.Stop()
 
+	log.Info().Msg("Server stopped")
 }
